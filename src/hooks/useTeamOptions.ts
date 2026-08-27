@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { BUILD_UPS, DESIGNERS } from '../constants'
 import type { BuildUp, Designer } from '../types'
 
-type TeamKind = 'designer' | 'buildUp'
+export type TeamKind = 'designer' | 'buildUp'
 
 interface TeamOptions {
   designers: Designer[]
@@ -42,6 +42,23 @@ export function useTeamOptions() {
     void refresh()
   }, [refresh])
 
+  const addOption = useCallback(
+    async (kind: TeamKind, name: string) => {
+      const cleanName = name.trim()
+      if (!cleanName) throw new Error('الاسم مطلوب')
+
+      const data = await api<TeamOptions>('/api/team-options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, name: cleanName }),
+      })
+      apply(data)
+      setError('')
+      return cleanName
+    },
+    [apply],
+  )
+
   const hideOption = useCallback(
     async (kind: TeamKind, name: string) => {
       const previous = { designers, buildUps }
@@ -68,5 +85,5 @@ export function useTeamOptions() {
     [apply, designers, buildUps],
   )
 
-  return { designers, buildUps, hideOption, error }
+  return { designers, buildUps, addOption, hideOption, error }
 }

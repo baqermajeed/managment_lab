@@ -1,15 +1,8 @@
 export type WorkType = 'Zercon' | 'Ceramic' | 'E-max'
 
-export type Designer =
-  | 'عصام'
-  | 'خليل'
-  | 'بو جبريل'
-  | 'احمد'
-  | 'مصمم g'
-  | 'انصاري'
-  | 'حمزة'
+export type Designer = string
 
-export type BuildUp = 'ام زين' | 'لوزان' | 'راجا' | 'ابو ميار'
+export type BuildUp = string
 
 export interface LabCase {
   id: string

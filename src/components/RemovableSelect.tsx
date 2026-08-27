@@ -7,6 +7,8 @@ interface RemovableSelectProps {
   placeholder: string
   onChange: (value: string) => void
   onRemove: (value: string) => void
+  onAdd?: () => void
+  addLabel?: string
   removeTitle?: string
 }
 
@@ -16,6 +18,8 @@ export function RemovableSelect({
   placeholder,
   onChange,
   onRemove,
+  onAdd,
+  addLabel = 'إضافة جديد',
   removeTitle = 'إخفاء من قائمة الإضافة فقط',
 }: RemovableSelectProps) {
   const [open, setOpen] = useState(false)
@@ -89,6 +93,19 @@ export function RemovableSelect({
                 </li>
               ))}
             </ul>
+          )}
+          {onAdd && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 border-t border-white/10 px-4 py-3 text-right text-sm font-medium text-teal-300 transition-colors hover:bg-teal-500/10"
+              onClick={() => {
+                setOpen(false)
+                onAdd()
+              }}
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-500/10">+</span>
+              <span>{addLabel}</span>
+            </button>
           )}
         </div>
       )}

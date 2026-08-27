@@ -41,6 +41,13 @@ const createCaseSchema = z.object({
   buildUp: z.string().min(1).max(120),
 })
 
+const updateCaseSchema = createCaseSchema
+
+const addTeamOptionSchema = z.object({
+  kind: teamKind,
+  name: z.string().trim().min(1).max(120),
+})
+
 const hideTeamOptionSchema = z.object({
   kind: teamKind,
   name: z.string().min(1).max(120),
@@ -167,6 +174,42 @@ app.get('/api/team-options', async (_req, res) => {
   res.json({ designers, buildUps })
 })
 
+app.post('/api/team-options', async (req, res) => {
+  const parsed = addTeamOptionSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'اسم غير صحيح', issues: parsed.error.issues })
+  }
+
+  const existing = await TeamMemberModel.findOne({
+    kind: parsed.data.kind,
+    name: parsed.data.name,
+  })
+
+  if (existing) {
+    if (existing.hidden) {
+      existing.hidden = false
+      existing.order = 999
+      await existing.save()
+    } else {
+      return res.status(409).json({ message: 'هذا الاسم موجود مسبقاً' })
+    }
+  } else {
+    const count = await TeamMemberModel.countDocuments({ kind: parsed.data.kind })
+    await TeamMemberModel.create({
+      kind: parsed.data.kind,
+      name: parsed.data.name,
+      hidden: false,
+      order: count,
+    })
+  }
+
+  const [designers, buildUps] = await Promise.all([
+    visibleNames('designer'),
+    visibleNames('buildUp'),
+  ])
+  res.status(existing ? 200 : 201).json({ designers, buildUps })
+})
+
 app.post('/api/team-options/hide', async (req, res) => {
   const parsed = hideTeamOptionSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -207,6 +250,42 @@ app.post('/api/cases', async (req, res) => {
 
   const created = await CaseModel.create(parsed.data)
   res.status(201).json(toApiCase(created))
+})
+
+app.put('/api/cases/:id', async (req, res) => {
+  const parsed = updateCaseSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'بيانات غير صحيحة', issues: parsed.error.issues })
+  }
+
+  const existingCase = await CaseModel.findById(req.params.id).lean()
+  if (!existingCase) {
+    return res.status(404).json({ message: 'الحالة غير موجودة' })
+  }
+
+  const [designers, buildUps] = await Promise.all([
+    visibleNames('designer'),
+    visibleNames('buildUp'),
+  ])
+  const designerAllowed = designers.includes(parsed.data.designer) || existingCase.designer === parsed.data.designer
+  const buildUpAllowed = buildUps.includes(parsed.data.buildUp) || existingCase.buildUp === parsed.data.buildUp
+  if (!designerAllowed || !buildUpAllowed) {
+    return res.status(400).json({
+      message: 'المصمم أو Build Up غير متاح في قائمة الإضافة',
+    })
+  }
+
+  const updated = await CaseModel.findByIdAndUpdate(
+    req.params.id,
+    { $set: parsed.data },
+    { new: true, runValidators: true },
+  )
+
+  if (!updated) {
+    return res.status(404).json({ message: 'الحالة غير موجودة' })
+  }
+
+  res.json(toApiCase(updated))
 })
 
 app.delete('/api/cases/:id', async (req, res) => {

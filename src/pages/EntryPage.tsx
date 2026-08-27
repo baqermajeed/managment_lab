@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Plus, Search, X } from 'lucide-react'
+import { CheckCircle2, Pencil, Plus, Search, X } from 'lucide-react'
 import { WORK_TYPES } from '../constants'
 import { CasesTable } from '../components/CasesTable'
 import { RemovableSelect } from '../components/RemovableSelect'
@@ -19,11 +19,12 @@ const emptyForm = {
 }
 
 export function EntryPage() {
-  const { addCase, cases, deleteCase, error: apiError, loading, searchCases } =
+  const { addCase, updateCase, cases, deleteCase, error: apiError, loading, searchCases } =
     useCasesContext()
   const {
     designers,
     buildUps,
+    addOption,
     hideOption,
     error: teamError,
   } = useTeamOptions()
@@ -34,6 +35,12 @@ export function EntryPage() {
   const [searchResults, setSearchResults] = useState<LabCase[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
+  const [addDialog, setAddDialog] = useState<'designer' | 'buildUp' | null>(null)
+  const [newTeamName, setNewTeamName] = useState('')
+  const [addTeamError, setAddTeamError] = useState('')
+  const [addingTeam, setAddingTeam] = useState(false)
+  const [editingCase, setEditingCase] = useState<LabCase | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const latestCases = useMemo(() => cases.slice(0, 25), [cases])
   const displayedCases = searchResults ?? latestCases
@@ -65,6 +72,104 @@ export function EntryPage() {
 
     return () => window.clearTimeout(timer)
   }, [query, searchCases])
+
+  const openAddDialog = (kind: 'designer' | 'buildUp') => {
+    setAddDialog(kind)
+    setNewTeamName('')
+    setAddTeamError('')
+  }
+
+  const handleAddTeamMember = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const name = newTeamName.trim()
+    if (!name) {
+      setAddTeamError('اكتب الاسم أولاً')
+      return
+    }
+    if (!addDialog) return
+
+    setAddingTeam(true)
+    setAddTeamError('')
+    try {
+      const createdName = await addOption(addDialog, name)
+      if (editingCase) {
+        setEditingCase((c) =>
+          c
+            ? addDialog === 'designer'
+              ? { ...c, designer: createdName }
+              : { ...c, buildUp: createdName }
+            : c,
+        )
+      } else {
+        setForm((f) =>
+          addDialog === 'designer'
+            ? { ...f, designer: createdName }
+            : { ...f, buildUp: createdName },
+        )
+      }
+      setAddDialog(null)
+    } catch (err) {
+      setAddTeamError(
+        err instanceof Error && err.message
+          ? err.message.includes('409') || err.message.includes('موجود')
+            ? 'هذا الاسم موجود مسبقاً'
+            : err.message
+          : 'تعذر إضافة الاسم',
+      )
+    } finally {
+      setAddingTeam(false)
+    }
+  }
+
+  const openEditDialog = (item: LabCase) => {
+    setEditingCase(item)
+    setError('')
+  }
+
+  const handleUpdateCase = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingCase) return
+    setError('')
+
+    if (
+      !editingCase.doctorName.trim() ||
+      !editingCase.patientName.trim() ||
+      !editingCase.workType ||
+      !editingCase.designer ||
+      !editingCase.buildUp
+    ) {
+      setError('يرجى تعبئة جميع الحقول')
+      return
+    }
+
+    const units = Number(editingCase.units)
+    if (!Number.isInteger(units) || units < 1) {
+      setError('عدد الوحدات يجب أن يكون رقماً صحيحاً أكبر من صفر')
+      return
+    }
+
+    setSavingEdit(true)
+    try {
+      const updated = await updateCase(editingCase.id, {
+        doctorName: editingCase.doctorName.trim(),
+        patientName: editingCase.patientName.trim(),
+        workType: editingCase.workType,
+        units,
+        designer: editingCase.designer,
+        buildUp: editingCase.buildUp,
+      })
+      setSearchResults((prev) =>
+        prev ? prev.map((item) => (item.id === updated.id ? updated : item)) : prev,
+      )
+      setEditingCase(null)
+      setSuccess(true)
+      window.setTimeout(() => setSuccess(false), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر تعديل الحالة')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -223,6 +328,8 @@ export function EntryPage() {
               onChange={(designer) =>
                 setForm((f) => ({ ...f, designer: designer as Designer }))
               }
+              onAdd={() => openAddDialog('designer')}
+              addLabel="إضافة مصمم جديد"
               onRemove={(name) => {
                 void hideOption('designer', name)
                 setForm((f) =>
@@ -244,6 +351,8 @@ export function EntryPage() {
               onChange={(buildUp) =>
                 setForm((f) => ({ ...f, buildUp: buildUp as BuildUp }))
               }
+              onAdd={() => openAddDialog('buildUp')}
+              addLabel="إضافة Build Up جديد"
               onRemove={(name) => {
                 void hideOption('buildUp', name)
                 setForm((f) =>
@@ -314,6 +423,7 @@ export function EntryPage() {
 
         <CasesTable
           cases={displayedCases}
+          onEdit={openEditDialog}
           onDelete={(id) => {
             deleteCase(id)
             setSearchResults((prev) =>
@@ -327,6 +437,160 @@ export function EntryPage() {
           }
         />
       </div>
+
+      {editingCase && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !savingEdit) setEditingCase(null)
+          }}
+        >
+          <form
+            onSubmit={handleUpdateCase}
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#111827] p-6 shadow-2xl animate-fade-in"
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">تعديل الحالة</h3>
+                <p className="mt-1 text-sm text-slate-400">عدّل بيانات الحالة ثم اضغط حفظ التعديلات.</p>
+              </div>
+              <button type="button" disabled={savingEdit} className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-50" onClick={() => setEditingCase(null)} aria-label="إغلاق">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              {field(
+                'اسم الطبيب',
+                <input
+                  type="text"
+                  className="input-field"
+                  value={editingCase.doctorName}
+                  onChange={(e) => setEditingCase((c) => c ? { ...c, doctorName: e.target.value } : c)}
+                />,
+              )}
+              {field(
+                'اسم المريض',
+                <input
+                  type="text"
+                  className="input-field"
+                  value={editingCase.patientName}
+                  onChange={(e) => setEditingCase((c) => c ? { ...c, patientName: e.target.value } : c)}
+                />,
+              )}
+              {field(
+                'نوع العمل',
+                <select
+                  className="input-field"
+                  value={editingCase.workType}
+                  onChange={(e) => setEditingCase((c) => c ? { ...c, workType: e.target.value as WorkType } : c)}
+                >
+                  {WORK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>,
+              )}
+              {field(
+                'عدد الوحدات',
+                <input
+                  type="number"
+                  min={1}
+                  className="input-field"
+                  value={editingCase.units}
+                  onChange={(e) => setEditingCase((c) => c ? { ...c, units: Number(e.target.value) } : c)}
+                />,
+              )}
+              {field(
+                'اسم المصمم',
+                <RemovableSelect
+                  value={editingCase.designer}
+                  options={designers}
+                  placeholder="— اختر المصمم —"
+                  onChange={(designer) => setEditingCase((c) => c ? { ...c, designer } : c)}
+                  onAdd={() => openAddDialog('designer')}
+                  addLabel="إضافة مصمم جديد"
+                  onRemove={(name) => {
+                    void hideOption('designer', name)
+                    setEditingCase((c) => c && c.designer === name ? { ...c, designer: '' } : c)
+                  }}
+                />,
+              )}
+              {field(
+                'اسم Build Up',
+                <RemovableSelect
+                  value={editingCase.buildUp}
+                  options={buildUps}
+                  placeholder="— اختر Build Up —"
+                  onChange={(buildUp) => setEditingCase((c) => c ? { ...c, buildUp } : c)}
+                  onAdd={() => openAddDialog('buildUp')}
+                  addLabel="إضافة Build Up جديد"
+                  onRemove={(name) => {
+                    void hideOption('buildUp', name)
+                    setEditingCase((c) => c && c.buildUp === name ? { ...c, buildUp: '' } : c)
+                  }}
+                />,
+              )}
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <button type="submit" disabled={savingEdit} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-50">
+                <Pencil className="h-4 w-4" />
+                {savingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+              </button>
+              <button type="button" disabled={savingEdit} className="rounded-xl border border-white/10 px-5 py-3 font-medium text-slate-300 hover:bg-white/5 disabled:opacity-50" onClick={() => setEditingCase(null)}>إلغاء</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {addDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setAddDialog(null)
+          }}
+        >
+          <form
+            onSubmit={handleAddTeamMember}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111827] p-6 shadow-2xl animate-fade-in"
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {addDialog === 'designer' ? 'إضافة مصمم جديد' : 'إضافة Build Up جديد'}
+                </h3>
+                <p className="mt-1 text-sm text-slate-400">سيظهر الاسم مباشرة ضمن قائمة اختيار الحالة.</p>
+              </div>
+              <button type="button" className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white" onClick={() => setAddDialog(null)} aria-label="إغلاق">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-300">الاسم</span>
+              <input
+                autoFocus
+                type="text"
+                className="input-field"
+                placeholder={addDialog === 'designer' ? 'اسم المصمم' : 'اسم Build Up'}
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+              />
+            </label>
+            {addTeamError && (
+              <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{addTeamError}</div>
+            )}
+            <div className="mt-6 flex gap-3">
+              <button type="submit" disabled={addingTeam} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-50">
+                <Plus className="h-4 w-4" />
+                {addingTeam ? 'جاري الإضافة...' : 'إضافة'}
+              </button>
+              <button type="button" className="rounded-xl border border-white/10 px-5 py-3 font-medium text-slate-300 hover:bg-white/5" onClick={() => setAddDialog(null)}>إلغاء</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

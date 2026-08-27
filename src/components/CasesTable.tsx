@@ -1,10 +1,11 @@
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import type { LabCase } from '../types'
 import { formatCaseDate } from '../utils/filters'
 
 interface CasesTableProps {
   cases: LabCase[]
   onDelete?: (id: string) => void
+  onEdit?: (item: LabCase) => void
   showDate?: boolean
   emptyMessage?: string
 }
@@ -21,6 +22,7 @@ function workTypeChip(type: LabCase['workType']) {
 export function CasesTable({
   cases,
   onDelete,
+  onEdit,
   showDate = true,
   emptyMessage = 'لا توجد حالات في هذه الفترة',
 }: CasesTableProps) {
@@ -55,15 +57,29 @@ export function CasesTable({
                 </p>
               </div>
 
-              {onDelete && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(c.id)}
-                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                  title="حذف"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+              {(onEdit || onDelete) && (
+                <div className="flex items-center gap-1">
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(c)}
+                      className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-teal-500/10 hover:text-teal-300"
+                      title="تعديل"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(c.id)}
+                      className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                      title="حذف"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -107,7 +123,7 @@ export function CasesTable({
                 <th>الوحدات</th>
                 <th>المصمم</th>
                 <th>Build Up</th>
-                {onDelete && <th></th>}
+                {(onEdit || onDelete) && <th>إجراءات</th>}
               </tr>
             </thead>
             <tbody>
@@ -129,16 +145,30 @@ export function CasesTable({
                   </td>
                   <td>{c.designer}</td>
                   <td>{c.buildUp}</td>
-                  {onDelete && (
+                  {(onEdit || onDelete) && (
                     <td>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(c.id)}
-                        className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                        title="حذف"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {onEdit && (
+                          <button
+                            type="button"
+                            onClick={() => onEdit(c)}
+                            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-teal-500/10 hover:text-teal-300"
+                            title="تعديل"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            type="button"
+                            onClick={() => onDelete(c.id)}
+                            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                            title="حذف"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>

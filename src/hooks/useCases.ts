@@ -65,6 +65,17 @@ export function useCases() {
     return optimistic
   }, [])
 
+  const updateCase = useCallback(async (id: string, entry: Omit<LabCase, 'id' | 'createdAt'>) => {
+    setError('')
+    const updated = await api<LabCase>(`/api/cases/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    })
+    setCases((prev) => prev.map((item) => (item.id === id ? updated : item)))
+    return updated
+  }, [])
+
   const searchCases = useCallback(async (query: string) => {
     const q = query.trim()
     if (!q) return []
@@ -85,5 +96,5 @@ export function useCases() {
     })()
   }, [])
 
-  return { cases, addCase, deleteCase, searchCases, refresh, loading, error }
+  return { cases, addCase, updateCase, deleteCase, searchCases, refresh, loading, error }
 }
