@@ -65,6 +65,12 @@ export function useCases() {
     return optimistic
   }, [])
 
+  const searchCases = useCallback(async (query: string) => {
+    const q = query.trim()
+    if (!q) return []
+    return api<LabCase[]>(`/api/cases?q=${encodeURIComponent(q)}`)
+  }, [])
+
   const deleteCase = useCallback((id: string) => {
     setError('')
     setCases((prev) => prev.filter((c) => c.id !== id))
@@ -79,5 +85,5 @@ export function useCases() {
     })()
   }, [])
 
-  return { cases, addCase, deleteCase, refresh, loading, error }
+  return { cases, addCase, deleteCase, searchCases, refresh, loading, error }
 }
